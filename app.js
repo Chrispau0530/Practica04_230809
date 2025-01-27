@@ -84,7 +84,7 @@ app.post('/login', (req, res) => {
 });
 
 app.post("/logout", (req, res) => {
-    const { sessionId } = req.body;
+    const { sessionId} = req.body;
     if (!sessionId || !sessions[sessionId]) {
         return res.status(404).json({ message: "No se ha encontrado una sesión activa" });
     }
@@ -115,35 +115,61 @@ app.post("/update", (req, res) => {
 
 
 
-
-// Ruta para obtener el estado de la sesión
 app.get('/status', (req, res) => {
-    const sessionID = req.query.sessionID;
+    const { sessionID } = req.query;  // Obtiene el sessionID desde los parámetros de consulta
     const now = new Date();
-    const started = new Date(req.session.createdAt);
-    const lastUpdate = new Date(req.session.lastAccess);
 
-    // Calcular la antigüedad de la sesión
-    const sessionAgeMS = now - started;
-    const hours = Math.floor(sessionAgeMS / (1000 * 60 * 60));  // Cambié 100*60*60 por 1000*60*60
-    const minutes = Math.floor((sessionAgeMS % (1000 * 60 * 60)) / (1000 * 60));  // Lo mismo para minutos
-    const seconds = Math.floor((sessionAgeMS % (1000 * 60)) / 1000);  // Y para segundos
-
-    const createAD_CDMX = moment(started).tz('America/Mexico_City').format('YYYY-MM-DD HH:mm:ss');  // Corregí el nombre de la zona horaria 'America/Mexico_City' y formato 'YYYY-MM-DD'
-    const lastAccess = moment(lastUpdate).tz('America/Mexico_City').format('YYYY-MM-DD HH:mm:ss');  // Corregí el formato de la fecha
-
-    if (!sessionID || !req.session) {  // Cambié sessionId por sessionID y la validación de la sesión
+    // Asegúrate de que la sesión exista
+    if (!sessionID || !req.session || !sessions[sessionID]) {
         return res.status(404).json({
             message: "No hay una sesión activa"
         });
     }
 
+    // Recupera la fecha de creación y el último acceso de la sesión
+    const started = new Date(sessions[sessionID]?.createAD_CDMX);
+    const lastUpdate = new Date(sessions[sessionID]?.lastAccess);
+    const nickname = (sessions[sessionID]?.nickname)
+    const email = (sessions[sessionID]?.email)
+    const ip_solicitud =(sessions[sessionID]?.ip)
+
+    // Verifica que las fechas sean válidas
+    if (isNaN(started.getTime()) || isNaN(lastUpdate.getTime())) {
+        return res.status(400).json({
+            message: "Las fechas de la sesión no son válidas"
+        });
+    }
+
+    // Calcular la antigüedad de la sesión
+    const sessionAgeMS = now - started;
+    const hours = Math.floor(sessionAgeMS / (1000 * 60 * 60));
+    const minutes = Math.floor((sessionAgeMS % (1000 * 60 * 60)) / (1000 * 60));
+    const seconds = Math.floor((sessionAgeMS % (1000 * 60)) / 1000);
+
+    const createAD_CDMX = moment(started).tz('America/Mexico_City').format('YYYY-MM-DD HH:mm:ss');
+    const lastAccess = moment(lastUpdate).tz('America/Mexico_City').format('YYYY-MM-DD HH:mm:ss');
+
     res.status(200).json({
         message: 'Estado de la sesión',
-        sessionID: req.sessionID,  // Asegúrate de usar req.sessionID en lugar de req.query.sessionID
+        nickname:nickname,
+        sessionID: sessionID,
+        email:email,
+        ip_solictud:ip_solicitud,
+        ip_responde:getLocalIp(),
         inicio: createAD_CDMX,
         ultimoAcceso: lastAccess,
         antigüedad: `${hours} horas, ${minutes} minutos y ${seconds} segundos`
     });
 });
 
+app.get('/listCurrentSession',(req,res)=>{
+
+
+
+
+
+
+
+
+
+})
