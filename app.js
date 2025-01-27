@@ -4,6 +4,7 @@ import bodyParser from 'body-parser';
 import { v4 as uuidv4 } from 'uuid';
 import moment from 'moment-timezone';
 import os from 'os';
+import { copyFileSync } from 'fs';
 
 const app = express();
 const PORT = 3000;
@@ -81,7 +82,39 @@ app.post('/login', (req, res) => {
         lastAccess:now,
 
     });
+    const minutes = Math.floor((sessionAgeMS % (1000 * 60 * 60)) / (1000 * 60));
+    const seconds = Math.floor((sessionAgeMS % (1000 * 60)) / 1000);
+    if(minutes<=2){
+        checkAndDestroySessions()
+        
+    }else{
+        console.log(sessionId)
+    }
 });
+
+
+// Verificar y destruir sesiones inactivas después de 2 minutos
+function checkAndDestroySessions() {
+    const now = new Date();
+  
+    Object.keys(sessions).forEach(sessionID => {
+      const sessionData = sessions[sessionID];
+      const createdAt = new Date(sessionData.createAD_CDMX);
+  
+      // Calcular la antigüedad de la sesión en milisegundos
+      const sessionAgeMS = now - createdAt;
+      const minutes = Math.floor(sessionAgeMS / (1000 * 60));
+  
+      // Destruir la sesión si supera los 2 minutos
+      if (minutes > 2) {
+        console.log(`Destruyendo sesión: ${sessionID}`);
+        delete sessions[sessionID];
+      }
+    });
+  }
+  
+  // Ejecutar la verificación periódica cada minuto
+  setInterval(checkAndDestroySessions, 60000); // 60000 ms = 1 minuto
 
 app.post("/logout", (req, res) => {
     const { sessionId} = req.body;
