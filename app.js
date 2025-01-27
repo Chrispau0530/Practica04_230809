@@ -162,14 +162,51 @@ app.get('/status', (req, res) => {
     });
 });
 
-app.get('/listCurrentSession',(req,res)=>{
+// Supongamos que sessions es un objeto donde se almacenan las sesiones
+//const sessions = {}; // Asegúrate de inicializarlo con datos válidos
 
+app.get('/listCurrentSession', (req, res) => {
+  const { sessionID } = req.query; // Obtiene el ID de sesión desde los parámetros de consulta
+  const now = new Date();
 
+  // Verifica si la sesión existe
+  if (!sessionID || !sessions[sessionID]) {
+    return res.status(404).json({ message: "No hay una sesión activa" });
+  }
 
+  const sessionData = sessions[sessionID];
 
+  // Recupera los datos de la sesión
+  const started = new Date(sessionData.createAD_CDMX);
+  const lastUpdate = new Date(sessionData.lastAccess);
+  const nickname = sessionData.nickname || "Desconocido";
+  const email = sessionData.email || "No proporcionado";
+  const ipSolicitud = sessionData.ip || "No registrada";
 
+  // Verifica que las fechas sean válidas
+  if (isNaN(started.getTime()) || isNaN(lastUpdate.getTime())) {
+    return res.status(400).json({ message: "Las fechas de la sesión no son válidas" });
+  }
 
+  // Calcular la antigüedad de la sesión
+  const sessionAgeMS = now - started;
+  const hours = Math.floor(sessionAgeMS / (1000 * 60 * 60));
+  const minutes = Math.floor((sessionAgeMS % (1000 * 60 * 60)) / (1000 * 60));
+  const seconds = Math.floor((sessionAgeMS % (1000 * 60)) / 1000);
 
+  const createAD_CDMX = moment(started).tz('America/Mexico_City').format('YYYY-MM-DD HH:mm:ss');
+  const lastAccess = moment(lastUpdate).tz('America/Mexico_City').format('YYYY-MM-DD HH:mm:ss');
 
-
-})
+  // Respuesta con el estado de la sesión
+  res.status(200).json({
+    message: 'Estado de la sesión',
+    nickname: nickname,
+    sessionID: sessionID,
+    email: email,
+    ipSolicitud: ipSolicitud,
+    ipRespuesta: getLocalIp(), // Implementa esta función según tu entorno
+    inicio: createAD_CDMX,
+    ultimoAcceso: lastAccess,
+    antigüedad: `${hours} horas, ${minutes} minutos y ${seconds} segundos`
+  });
+});
