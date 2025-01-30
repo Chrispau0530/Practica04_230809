@@ -106,7 +106,7 @@ function checkAndDestroySessions() {
       const minutes = Math.floor(sessionAgeMS / (1000 * 60));
   
       // Destruir la sesión si supera los 2 minutos
-      if (minutes > 2) {
+      if (minutes > 1) {
         console.log(`Destruyendo sesión: ${sessionID}`);
         delete sessions[sessionID];
       }
@@ -148,32 +148,60 @@ app.post("/update", (req, res) => {
 
 
 
+// Función para obtener la IP y MAC del servidor
+function getServerNetworkInfo() {
+    const interfaces = os.networkInterfaces();
+    let serverIp = '127.0.0.1';
+    let serverMac = '00:00:00:00:00:00';
+
+    for (let iface of Object.values(interfaces)) {
+        for (let info of iface) {
+            if (info.family === 'IPv4' && !info.internal) {
+                serverIp = info.address;
+                serverMac = info.mac;
+            }
+        }
+    }
+    return { serverIp, serverMac };
+}
+
+// Función para obtener la MAC de un cliente dado su IP
+function getClientMac(ip) {
+    try {
+        const output = arp(`arp -a ${ip}`).toString();
+        const match = output.match(/([a-fA-F0-9-:]{17})/);
+        return match ? match[0] : 'MAC no disponible';
+    } catch (error) {
+        return 'MAC no disponible';
+    }
+}
+
 app.get('/status', (req, res) => {
-    const { sessionID } = req.query;  // Obtiene el sessionID desde los parámetros de consulta
+    const { sessionID } = req.query;
     const now = new Date();
 
-    // Asegúrate de que la sesión exista
-    if (!sessionID || !req.session || !sessions[sessionID]) {
-        return res.status(404).json({
-            message: "No hay una sesión activa"
-        });
+    if (!sessionID || !sessions[sessionID]) {
+        return res.status(404).json({ message: "No hay una sesión activa" });
     }
 
-    // Recupera la fecha de creación y el último acceso de la sesión
-    const started = new Date(sessions[sessionID]?.createAD_CDMX);
-    const lastUpdate = new Date(sessions[sessionID]?.lastAccess);
-    const nickname = (sessions[sessionID]?.nickname)
-    const email = (sessions[sessionID]?.email)
-    const ip_solicitud =(sessions[sessionID]?.ip)
+    const session = sessions[sessionID];
 
-    // Verifica que las fechas sean válidas
+    // Captura las IPs
+    const ipCliente = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+    const { serverIp, serverMac } = getServerNetworkInfo();
+    //const macCliente = getClientMac(ipCliente); // Intento de obtener la MAC del cliente
+
+    // Datos de sesión
+    const started = new Date(session.createAD_CDMX);
+    const lastUpdate = new Date(session.lastAccess);
+    const nickname = session.nickname;
+    const email = session.email;
+    const macCliente=session.macAddress
+
     if (isNaN(started.getTime()) || isNaN(lastUpdate.getTime())) {
-        return res.status(400).json({
-            message: "Las fechas de la sesión no son válidas"
-        });
+        return res.status(400).json({ message: "Las fechas de la sesión no son válidas" });
     }
 
-    // Calcular la antigüedad de la sesión
     const sessionAgeMS = now - started;
     const hours = Math.floor(sessionAgeMS / (1000 * 60 * 60));
     const minutes = Math.floor((sessionAgeMS % (1000 * 60 * 60)) / (1000 * 60));
@@ -184,62 +212,34 @@ app.get('/status', (req, res) => {
 
     res.status(200).json({
         message: 'Estado de la sesión',
-        nickname:nickname,
+        nickname: nickname,
         sessionID: sessionID,
-        email:email,
-        ip_solictud:ip_solicitud,
-        ip_responde:getLocalIp(),
+        email: email,
+        ip_cliente: ipCliente,
+        mac_cliente: macCliente,
+        ip_servidor: serverIp,
+        mac_servidor: serverMac,
         inicio: createAD_CDMX,
         ultimoAcceso: lastAccess,
         antigüedad: `${hours} horas, ${minutes} minutos y ${seconds} segundos`
     });
 });
 
-// Supongamos que sessions es un objeto donde se almacenan las sesiones
-//const sessions = {}; // Asegúrate de inicializarlo con datos válidos
+
 
 app.get('/listCurrentSession', (req, res) => {
-  const { sessionID } = req.query; // Obtiene el ID de sesión desde los parámetros de consulta
-  const now = new Date();
+    const activeSessions = Object.values(sessions).map(session => ({
+        sessionId: session.sessionId,
+        email: session.email,
+        nickname: session.nickname,
+        macAddress: session.macAddress,
+        ip: session.ip,
+        createAD_CDMX: moment(session.createAD_CDMX).tz('America/Mexico_City').format('YYYY-MM-DD HH:mm:ss'),
+        lastAccess: moment(session.lastAccess).tz('America/Mexico_City').format('YYYY-MM-DD HH:mm:ss')
+    }));
 
-  // Verifica si la sesión existe
-  if (!sessionID || !sessions[sessionID]) {
-    return res.status(404).json({ message: "No hay una sesión activa" });
-  }
-
-  const sessionData = sessions[sessionID];
-
-  // Recupera los datos de la sesión
-  const started = new Date(sessionData.createAD_CDMX);
-  const lastUpdate = new Date(sessionData.lastAccess);
-  const nickname = sessionData.nickname || "Desconocido";
-  const email = sessionData.email || "No proporcionado";
-  const ipSolicitud = sessionData.ip || "No registrada";
-
-  // Verifica que las fechas sean válidas
-  if (isNaN(started.getTime()) || isNaN(lastUpdate.getTime())) {
-    return res.status(400).json({ message: "Las fechas de la sesión no son válidas" });
-  }
-
-  // Calcular la antigüedad de la sesión
-  const sessionAgeMS = now - started;
-  const hours = Math.floor(sessionAgeMS / (1000 * 60 * 60));
-  const minutes = Math.floor((sessionAgeMS % (1000 * 60 * 60)) / (1000 * 60));
-  const seconds = Math.floor((sessionAgeMS % (1000 * 60)) / 1000);
-
-  const createAD_CDMX = moment(started).tz('America/Mexico_City').format('YYYY-MM-DD HH:mm:ss');
-  const lastAccess = moment(lastUpdate).tz('America/Mexico_City').format('YYYY-MM-DD HH:mm:ss');
-
-  // Respuesta con el estado de la sesión
-  res.status(200).json({
-    message: 'Estado de la sesión',
-    nickname: nickname,
-    sessionID: sessionID,
-    email: email,
-    ipSolicitud: ipSolicitud,
-    ipRespuesta: getLocalIp(), // Implementa esta función según tu entorno
-    inicio: createAD_CDMX,
-    ultimoAcceso: lastAccess,
-    antigüedad: `${hours} horas, ${minutes} minutos y ${seconds} segundos`
-  });
+    res.status(200).json({
+        message: "Sesiones activas", 
+        activeSessions
+    });
 });
